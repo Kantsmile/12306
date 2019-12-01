@@ -1,12 +1,14 @@
 # -*- coding=utf-8 -*-
 import copy
+import json
 import random
+import re
 import time
 from collections import OrderedDict
 from time import sleep
-
-from config.ticketConf import _get_yaml
-from inter.GetPassCodeNewOrderAndLogin import getPassCodeNewOrderAndLogin, getPassCodeNewOrderAndLogin1
+import TickerConfig
+from config.urlConf import urls
+from inter.GetPassCodeNewOrderAndLogin import getPassCodeNewOrderAndLogin1
 from inter.GetRandCode import getRandCode
 from inter.LoginAysnSuggest import loginAysnSuggest
 from inter.LoginConf import loginConf
@@ -19,16 +21,6 @@ class GoLogin:
         self.randCode = ""
         self.is_auto_code = is_auto_code
         self.auto_code_type = auto_code_type
-
-    # def auth(self):
-    #     """
-    #     认证
-    #     :return:
-    #     """
-    #     authUrl = self.session.urls["auth"]
-    #     authData = {"appid": "otn"}
-    #     tk = self.session.httpClint.send(authUrl, authData)
-    #     return tk
 
     def auth(self):
         """
@@ -54,9 +46,12 @@ class GoLogin:
         codeCheckUrl = copy.deepcopy(self.session.urls["codeCheck1"])
         codeCheckUrl["req_url"] = codeCheckUrl["req_url"].format(self.randCode, int(time.time() * 1000))
         fresult = self.session.httpClint.send(codeCheckUrl)
+        if not isinstance(fresult, str):
+            print("登录失败")
+            return
         fresult = eval(fresult.split("(")[1].split(")")[0])
         if "result_code" in fresult and fresult["result_code"] == "4":
-            print (u"验证码通过,开始登录..")
+            print(u"验证码通过,开始登录..")
             return True
         else:
             if "result_message" in fresult:
@@ -81,7 +76,7 @@ class GoLogin:
 
         tresult = self.session.httpClint.send(logurl, loginData)
         if 'result_code' in tresult and tresult["result_code"] == 0:
-            print (u"登录成功")
+            print(u"登录成功")
             tk = self.auth()
             if "newapptk" in tk and tk["newapptk"]:
                 return tk["newapptk"]
@@ -92,8 +87,8 @@ class GoLogin:
             if messages.find(u"密码输入错误") is not -1:
                 raise UserPasswordException("{0}".format(messages))
             else:
-                print (u"登录失败: {0}".format(messages))
-                print (u"尝试重新登陆")
+                print(u"登录失败: {0}".format(messages))
+                print(u"尝试重新登陆")
                 return False
         else:
             return False
@@ -127,30 +122,19 @@ class GoLogin:
         :param passwd: 密码
         :return:
         """
-        # if self.is_auto_code and self.auto_code_type == 1:
-        #     balance = DamatuApi(_get_yaml()["auto_code_account"]["user"], _get_yaml()["auto_code_account"]["pwd"]).getBalance()
-        #     if int(balance) < 40:
-        #         raise balanceException(u'余额不足，当前余额为: {}'.format(balance))
-        user, passwd = _get_yaml()["set"]["12306account"][0]["user"], _get_yaml()["set"]["12306account"][1]["pwd"]
+        user, passwd = TickerConfig.USER, TickerConfig.PWD
         if not user or not passwd:
             raise UserPasswordException(u"温馨提示: 用户名或者密码为空，请仔细检查")
         login_num = 0
         while True:
             if loginConf(self.session):
-                # result = getPassCodeNewOrderAndLogin(session=self.session, imgType="login")
-                self.auth()
-
-                devicesIdUrl = copy.deepcopy(self.session.urls["getDevicesId"])
-                devicesIdUrl["req_url"] = devicesIdUrl["req_url"].format(int(time.time() * 1000))
-                devicesIdRsp = self.session.httpClint.send(devicesIdUrl)
-                devicesId = eval(devicesIdRsp.split("(")[1].split(")")[0].replace("'", ""))["dfp"]
-                if devicesId:
-                    self.session.httpClint.set_cookies(RAIL_DEVICEID=devicesId)
+                # self.auth()
 
                 result = getPassCodeNewOrderAndLogin1(session=self.session, imgType="login")
                 if not result:
                     continue
                 self.randCode = getRandCode(self.is_auto_code, self.auto_code_type, result)
+                print(self.randCode)
                 login_num += 1
                 self.auth()
                 if self.codeCheck():
@@ -162,9 +146,3 @@ class GoLogin:
                 loginAysnSuggest(self.session, username=user, password=passwd)
                 login_num += 1
                 break
-
-
-
-# if __name__ == "__main__":
-#     # main()
-#     # logout()
